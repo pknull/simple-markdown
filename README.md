@@ -396,6 +396,8 @@ The following work on normal and visual modes:
 
     The rules for the cursor position are the same as the `gx` command.
 
+    Percent-encoded local filenames are decoded once: `[chapter](01%20Departure/index.md)` opens `01 Departure/index.md`. Encoded UTF-8 and characters such as `%23` (a literal `#`) are supported. Browser links opened with `gx` retain their URL encoding.
+
 -   `]]`: go to next header. `<Plug>Markdown_MoveToNextHeader`
 
 -   `[[`: go to previous header. Contrast with `]h`. `<Plug>Markdown_MoveToPreviousHeader`

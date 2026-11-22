@@ -1,0 +1,107 @@
+Before:
+  Save g:vim_markdown_follow_anchor, g:vim_markdown_no_extensions_in_markdown
+  Save g:vim_markdown_edit_url_in, g:vim_markdown_autowrite
+  Save &foldenable, &foldmethod, &foldexpr, &foldlevel, &foldcolumn
+  let g:vim_markdown_follow_anchor = 0
+  let g:vim_markdown_no_extensions_in_markdown = 0
+  let g:vim_markdown_autowrite = 0
+  let g:vim_markdown_edit_url_in = 'current'
+  let g:vim_markdown_test_window = win_getid()
+  let g:vim_markdown_test_buffer = bufnr('')
+  let g:vim_markdown_test_root = tempname() . '/parent %20 space'
+  call mkdir(g:vim_markdown_test_root, 'p')
+  function! s:Follow(filename, url, ...) abort
+    let l:source = g:vim_markdown_test_root . '/index.md'
+    let l:target = g:vim_markdown_test_root . '/' . a:filename
+    call mkdir(fnamemodify(l:target, ':h'), 'p')
+    call writefile(['# Destination', '', 'Anchor here'], l:target)
+    call writefile(['[destination](' . a:url . ')'], l:source)
+    execute 'edit ' . fnameescape(l:source)
+    call cursor(1, 4)
+    let l:tabs = tabpagenr('$')
+    let l:windows = winnr('$')
+    if get(a:, 1, 0)
+      normal vge
+    else
+      normal ge
+    endif
+    AssertEqual l:target, expand('%:p')
+    AssertEqual 1, filereadable(expand('%:p'))
+    AssertEqual '# Destination', getline(1)
+    AssertEqual 0, &modified
+    let l:line = line('.')
+    if g:vim_markdown_edit_url_in ==# 'tab'
+      AssertEqual l:tabs + 1, tabpagenr('$')
+      tabclose
+    elseif index(['vsplit', 'hsplit'], g:vim_markdown_edit_url_in) >= 0
+      AssertEqual l:windows + 1, winnr('$')
+      close
+    endif
+    return l:line
+  endfunction
+  let g:vim_markdown_test = {'follow': function('s:Follow')}
+
+After:
+  call win_gotoid(g:vim_markdown_test_window)
+  execute 'hide buffer ' . g:vim_markdown_test_buffer
+  for info in getbufinfo()
+    if stridx(info.name, g:vim_markdown_test_root . '/') == 0
+      execute 'bwipeout! ' . info.bufnr
+    endif
+  endfor
+  call delete(fnamemodify(g:vim_markdown_test_root, ':h'), 'rf')
+  unlet g:vim_markdown_test g:vim_markdown_test_root
+  unlet g:vim_markdown_test_window g:vim_markdown_test_buffer
+  Restore
+
+Execute (ge decodes local filenames once, without decoding the parent path):
+  for [filename, url] in [
+        \ ['01 Departure/index.md', '01%20Departure/index.md'],
+        \ ['café/日本語.md', 'caf%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E.md'],
+        \ ['hash#name.md', 'hash%23name.md'],
+        \ ['literal%20.md', 'literal%2520.md'],
+        \ ['percent%.md', 'percent%25.md'],
+        \ ['plus+name.md', 'plus%2Bname.md'],
+        \ ['bar|name.md', 'bar%7Cname.md'],
+        \ ['question?.md', 'question%3F.md'],
+        \ ['bracket[name].md', 'bracket%5Bname%5D.md'],
+        \ ["quote'name.md", 'quote%27name.md']]
+    call g:vim_markdown_test.follow(filename, url)
+  endfor
+
+Execute (ge preserves plain paths, literal plus signs and malformed escapes):
+  for filename in ['ordinary.md', 'plus+name.md', 'literal%ZZ.md', 'trailing%.md']
+    call g:vim_markdown_test.follow(filename, filename)
+  endfor
+
+Execute (ge accepts lowercase escapes):
+  call g:vim_markdown_test.follow('bar|name.md', 'bar%7cname.md')
+
+Execute (visual ge follows encoded links):
+  call g:vim_markdown_test.follow('space name.md', 'space%20name.md', 1)
+
+Execute (ge preserves split and tab options):
+  for mode in ['tab', 'vsplit', 'hsplit']
+    let g:vim_markdown_edit_url_in = mode
+    call g:vim_markdown_test.follow('space name.md', 'space%20name.md')
+  endfor
+
+Execute (ge appends the configured extension after decoding):
+  let g:vim_markdown_no_extensions_in_markdown = 1
+  call g:vim_markdown_test.follow('space name.md', 'space%20name')
+
+Execute (ge separates an anchor before decoding an encoded hash in the path):
+  let g:vim_markdown_follow_anchor = 1
+  AssertEqual 3, g:vim_markdown_test.follow('hash#name.md', 'hash%23name.md#Anchor')
+
+Execute (ge rejects an encoded NUL before writing or changing buffers):
+  call writefile(['[destination](bad%00name.md)'], g:vim_markdown_test_root . '/index.md')
+  execute 'edit ' . fnameescape(g:vim_markdown_test_root . '/index.md')
+  call setline(2, 'unsaved')
+  call cursor(1, 4)
+  let g:vim_markdown_autowrite = 1
+  AssertThrows normal ge
+  Assert g:vader_exception =~# 'A Markdown filename cannot contain a NUL byte'
+  AssertEqual g:vim_markdown_test_root . '/index.md', expand('%:p')
+  AssertEqual 1, &modified
+  AssertEqual ['[destination](bad%00name.md)'], readfile(expand('%:p'))

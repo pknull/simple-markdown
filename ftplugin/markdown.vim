@@ -711,9 +711,6 @@ if !exists('*s:EditUrlUnderCursor')
         endif
         let l:url = s:Markdown_GetUrlForPosition(line('.'), col('.'))
         if l:url !=# ''
-            if get(g:, 'vim_markdown_autowrite', 0)
-                write
-            endif
             let l:anchor = ''
             if get(g:, 'vim_markdown_follow_anchor', 0)
                 let l:parts = split(l:url, '#', 1)
@@ -726,6 +723,19 @@ if !exists('*s:EditUrlUnderCursor')
                             \ escape('"'.l:anchor.'"', '"'), ''))
                     endif
                 endif
+            endif
+            " Decode local URL bytes once, after separating the anchor and
+            " before joining the parent path or escaping the Ex argument.
+            if l:url !~# '^\a[[:alnum:]+.-]*:'
+                if l:url =~? '%00'
+                    echoerr 'A Markdown filename cannot contain a NUL byte.'
+                    return
+                endif
+                let l:url = substitute(l:url, '%\(\x\x\)',
+                    \ '\=eval(''"\x'' . submatch(1) . ''"'')', 'g')
+            endif
+            if get(g:, 'vim_markdown_autowrite', 0)
+                write
             endif
             if l:url !=# ''
                 let l:ext = ''
@@ -774,6 +784,7 @@ call <sid>MapNormVis('<Plug>Markdown_MoveToParentHeader', '<sid>MoveToParentHead
 call <sid>MapNormVis('<Plug>Markdown_MoveToCurHeader', '<sid>MoveToCurHeader')
 nnoremap <Plug>Markdown_OpenUrlUnderCursor :call <sid>OpenUrlUnderCursor()<cr>
 nnoremap <Plug>Markdown_EditUrlUnderCursor :call <sid>EditUrlUnderCursor()<cr>
+xnoremap <Plug>Markdown_EditUrlUnderCursor <Esc>:call <sid>EditUrlUnderCursor()<cr>
 
 if !get(g:, 'vim_markdown_no_default_key_mappings', 0)
     call <sid>MapNotHasmapto(']]', 'Markdown_MoveToNextHeader')
