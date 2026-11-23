@@ -1,0 +1,160 @@
+*simple-markdown.txt*  Markdown navigation and editing for Vim 9.1
+
+simple-markdown                                          *simple-markdown*
+
+An add-on to Vim's bundled Markdown support, trimmed from preservim/vim-markdown:
+https://github.com/preservim/vim-markdown
+Credit belongs to the original authors and contributors. Licence files are in
+LICENSES/; source files retain their SPDX notices.
+
+Vim provides filetype detection, syntax, YAML frontmatter, fenced-language
+highlighting, indentation defaults and optional heading folding. This plugin
+loads afterwards, uses Vim's syntax group names and adds the tools below.
+
+INSTALLATION                                     *simple-markdown-install*
+
+With vim-plug: >
+    Plug 'pknull/simple-markdown'
+    " Optional dependency for :TableFormat:
+    Plug 'godlygeek/tabular'
+<
+Enable the bundled runtime, and optionally folding and fenced languages: >
+    filetype plugin indent on
+    syntax enable
+    let g:markdown_folding = 1
+    let g:markdown_fenced_languages = ['sh', 'python', 'bash=sh']
+<
+Set options before opening Markdown buffers. Folding calls Vim's MarkdownFold()
+through SimpleMarkdownFold(), excluding headings in code blocks and YAML
+frontmatter. Vim's fold text is unchanged. No indent expression is installed.
+
+MAPPINGS                                        *simple-markdown-mappings*
+
+Default mappings work in Normal and Visual modes:
+    ][      Next sibling heading.
+    []      Previous sibling heading.
+    ]u      Parent heading.
+    ]h      Current heading.
+    gx      Open the link under the cursor using netrw.
+    ge      Edit the linked file; follow its heading anchor by default.
+
+Vim retains its [[ and ]] defaults. The add-on provides these buffer mappings:
+    <Plug>Markdown_MoveToNextHeader
+    <Plug>Markdown_MoveToPreviousHeader
+    <Plug>Markdown_MoveToNextSiblingHeader
+    <Plug>Markdown_MoveToPreviousSiblingHeader
+    <Plug>Markdown_MoveToParentHeader
+    <Plug>Markdown_MoveToCurHeader
+    <Plug>Markdown_OpenUrlUnderCursor
+    <Plug>Markdown_EditUrlUnderCursor
+
+To choose your own next-heading key, for example: >
+    nmap <Leader>j <Plug>Markdown_MoveToNextHeader
+<
+Link detection accepts the cursor on the label, brackets, parentheses or URL of
+an inline link or image. It also recognises <automatic links>, bare HTTP(S)
+URLs and URLs in reference definitions. Optional titles are excluded from the
+returned URL. Links must fit on one line. With syntax disabled, matching falls
+back to text on the current line.
+
+Local filenames in ge links are percent-decoded once, after separating the
+anchor; literal plus signs stay unchanged. An anchor-only link stays in the
+current file. Built-in anchor matching ignores case and tolerates punctuation:
+#whats-new-in-20 finds "## What's new in 2.0?". Setext headings also work.
+
+COMMANDS                                        *simple-markdown-commands*
+
+:Toc                                                    *:Toc*
+:Tocv                                                   *:Tocv*
+    Open the table of contents in a vertical location-list window.
+:Toch                                                   *:Toch*
+    Open it in a horizontal split.
+:Toct                                                   *:Toct*
+    Open it in a tab. Use the location list to jump to a heading.
+
+:InsertToc [depth]                                       *:InsertToc*
+:InsertNToc [depth]                                      *:InsertNToc*
+    Insert linked headings below the cursor. Omit level-one headings. InsertToc
+    uses bullets; InsertNToc numbers level-two headings and uses bullets below
+    them. Optional depth limits the maximum heading level and must be >= 2.
+
+:[range]HeaderDecrease                                  *:HeaderDecrease*
+:[range]HeaderIncrease                                  *:HeaderIncrease*
+    Decrease/increase heading levels by one (h2 becomes h1/h3). Abort if the
+    range contains h1/h6 respectively. Convert setext headings to ATX first.
+    The default range is the whole file.
+
+:[range]SetexToAtx                                       *:SetexToAtx*
+    Convert setext headings to ATX. Default range: whole file.
+
+:TableFormat                                            *:TableFormat*
+    Format the table under the cursor, preserving alignment colons. Requires
+    the tabular plugin's :Tabularize; a missing dependency gives a clear error.
+
+OPTIONS                                         *simple-markdown-options*
+
+Retained options keep their g:vim_markdown_* names. Set them before opening a
+buffer. Options configuring the former replacement runtime have been removed.
+
+                                *g:vim_markdown_no_default_key_mappings*
+g:vim_markdown_no_default_key_mappings (default: 0)
+    Set to 1 to disable the add-on's default keys. Plug mappings and Vim's
+    bundled [[ and ]] mappings remain available.
+
+                                *g:vim_markdown_auto_insert_bullets*
+g:vim_markdown_auto_insert_bullets (default: 1)
+    Continue *, + and - bullets on Enter, as well as blockquotes. With 0, only
+    blockquotes continue. Uses 'comments' and 'formatoptions', not 'indentexpr'.
+
+                                *g:vim_markdown_toc_autofit*
+g:vim_markdown_toc_autofit (default: 0)
+    Set to 1 to fit vertical TOC windows to their contents, up to half the screen.
+
+                                *g:vim_markdown_borderless_table*
+g:vim_markdown_borderless_table (default: 0)
+    Set to 1 to add borders when formatting a borderless table.
+
+                                *g:vim_markdown_edit_url_in*
+g:vim_markdown_edit_url_in (default: 'current')
+    Choose 'current', 'tab', 'vsplit' or 'hsplit' for ge's destination.
+
+                                *g:vim_markdown_autowrite*
+g:vim_markdown_autowrite (default: 0)
+    Set to 1 to write the current buffer before following a ge link.
+
+                                *g:vim_markdown_no_extensions_in_markdown*
+g:vim_markdown_no_extensions_in_markdown (default: 0)
+    Set to 1 to append an extension to the file opened by ge.
+
+                                *g:vim_markdown_auto_extension_ext*
+g:vim_markdown_auto_extension_ext (default: 'md')
+    Extension without the dot, used when no_extensions_in_markdown is enabled.
+
+                                *g:vim_markdown_follow_anchor*
+g:vim_markdown_follow_anchor (default: 1)
+    Follow #anchors with ge. Set to 0 to treat the fragment as part of the path.
+
+                                *g:vim_markdown_anchorexpr*
+g:vim_markdown_anchorexpr (default: unset)
+    An expression containing v:anchor, evaluated into a Vim search pattern.
+    Overrides the built-in heading match. For the former plain pattern search: >
+        let g:vim_markdown_anchorexpr = 'v:anchor'
+<
+CONCEAL                                         *simple-markdown-conceal*
+
+When +conceal is available and g:markdown_syntax_conceal is enabled (default: 1),
+the add-on hides link brackets and targets, inline-code backticks and fence
+lines. Image targets behave like link targets. Optional titles remain visible. Embedded language highlighting
+is preserved. For hidden text rather than a replacement character: >
+    set conceallevel=2
+<
+Vim's 'concealcursor' determines visibility on the cursor line. Disable conceal
+rules with the bundled option, before opening the buffer: >
+    let g:markdown_syntax_conceal = 0
+<
+DEVELOPMENT                                     *simple-markdown-development*
+
+Run make test for the Vader suite. Tests use Vim's bundled runtime, this add-on,
+Vader and Tabular. README.md and this help file are maintained by hand.
+
+ vim:tw=78:ts=8:ft=help:norl:

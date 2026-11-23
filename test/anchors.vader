@@ -1,0 +1,99 @@
+Before:
+  Save g:vim_markdown_follow_anchor, g:vim_markdown_anchorexpr
+  Save g:vim_markdown_edit_url_in, g:vim_markdown_autowrite
+  unlet! g:vim_markdown_follow_anchor g:vim_markdown_anchorexpr
+  let g:vim_markdown_edit_url_in = 'current'
+  let g:vim_markdown_autowrite = 0
+
+After:
+  Restore
+
+Given markdown;
+[jump](#whats-new-in-20)
+
+## What's new in 2.0?
+
+Execute (anchor-only ge follows GitHub-style headings by default):
+  let buffer = bufnr('%')
+  normal ge
+  AssertEqual buffer, bufnr('%')
+  AssertEqual 3, line('.')
+
+Given markdown;
+[jump](#whats-new-in-20)
+
+What's new in 2.0?
+=================
+
+Execute (anchor-only ge follows setext level one headings):
+  normal ge
+  AssertEqual 3, line('.')
+
+Given markdown;
+[jump](#whats-new-in-20)
+
+What's new in 2.0?
+-----------------
+
+Execute (anchor-only ge follows setext level two headings):
+  normal ge
+  AssertEqual 3, line('.')
+
+Given markdown;
+[jump](#whats-new-in-20)
+
+What's new in 2.0? in ordinary prose.
+
+## WHAT'S NEW IN 2.0?
+
+Execute (built-in matching ignores prose and is case insensitive):
+  normal ge
+  AssertEqual 5, line('.')
+
+Given markdown;
+[jump](#intro)
+
+## Introduction to the rest
+
+## Intro
+
+Execute (an anchor matches a whole heading, not the start of a longer one):
+  normal ge
+  AssertEqual 5, line('.')
+
+Given markdown;
+[jump](#ge-follows-links)
+
+## `ge` follows links ##
+
+Execute (a heading may open with markup and close with hashes):
+  normal ge
+  AssertEqual 3, line('.')
+
+Given markdown;
+[jump](#slug)
+
+custom target
+
+Execute (user anchorexpr takes precedence and can still search arbitrary text):
+  let g:vim_markdown_anchorexpr = 'substitute(v:anchor, "slug", "custom target", "")'
+  normal ge
+  AssertEqual 3, line('.')
+
+Given markdown;
+[jump](#no-such-heading)
+
+## Actual heading
+
+Execute (missing anchors leave the cursor in place):
+  normal ge
+  AssertEqual 1, line('.')
+
+Given markdown;
+[jump](#)
+
+## Heading
+
+Execute (an empty fragment does not select an arbitrary heading):
+  normal ge
+  AssertEqual 1, line('.')

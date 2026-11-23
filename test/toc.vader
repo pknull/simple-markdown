@@ -179,3 +179,28 @@ Execute (Toc cursor on the current header):
   :Toc
   AssertEqual line('.'), 3
   :lclose
+
+Given markdown;
+# Heading
+
+## Subheading
+
+Execute (explicit vertical horizontal and tab TOC commands):
+  let source = win_getid()
+  let windows = winnr('$')
+  Tocv
+  AssertEqual windows + 1, winnr('$')
+  AssertEqual ['Heading', '  Subheading'], getline(1, '$')
+  lclose
+  call win_gotoid(source)
+  Toch
+  AssertEqual windows + 1, winnr('$')
+  AssertEqual ['Heading', '  Subheading'], getline(1, '$')
+  lclose
+  call win_gotoid(source)
+  let tabs = tabpagenr('$')
+  Toct
+  AssertEqual tabs + 1, tabpagenr('$')
+  AssertEqual ['Heading', '  Subheading'], getline(1, '$')
+  tabclose
+  call win_gotoid(source)

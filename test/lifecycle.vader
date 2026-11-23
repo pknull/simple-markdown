@@ -1,0 +1,115 @@
+Before:
+  Save g:vim_markdown_auto_insert_bullets, g:vim_markdown_no_default_key_mappings
+  Save g:markdown_folding
+  Save &foldexpr, &foldmethod, &foldtext, &formatoptions, &comments, &indentexpr
+  unlet! g:vim_markdown_auto_insert_bullets g:vim_markdown_no_default_key_mappings g:markdown_folding
+  setlocal filetype=markdown
+
+After:
+  Restore
+
+Given markdown;
+# Heading
+
+## Child
+
+Execute (bundled ftplugin owns double-bracket maps and defaults):
+  Assert maparg(']]', 'n') =~# 'call search('
+  Assert maparg('[[', 'n') =~# 'call search('
+  AssertEqual 4, &l:shiftwidth
+  AssertEqual '<!--%s-->', &l:commentstring
+  AssertEqual '', &l:indentexpr
+  for lhs in ['][', '[]', ']u', ']h', 'gx', 'ge']
+    AssertEqual 1, maparg(lhs, 'n', 0, 1).buffer
+    AssertEqual 1, maparg(lhs, 'x', 0, 1).buffer
+  endfor
+  for plug in ['NextHeader', 'PreviousHeader', 'NextSiblingHeader', 'PreviousSiblingHeader', 'ParentHeader', 'CurHeader']
+    AssertEqual 1, maparg('<Plug>Markdown_MoveTo' . plug, 'n', 0, 1).buffer
+  endfor
+
+Execute (the add-on is guarded against duplicate buffer loading):
+  let undo = b:undo_ftplugin
+  let next = maparg(']]', 'n')
+  runtime after/ftplugin/markdown.vim
+  runtime after/ftplugin/markdown.vim
+  AssertEqual undo, b:undo_ftplugin
+  AssertEqual next, maparg(']]', 'n')
+  AssertEqual 'b:>,b:*,b:+,b:-', &l:comments
+
+Execute (opting out of add-on defaults leaves bundled maps and Plug maps):
+  let g:vim_markdown_no_default_key_mappings = 1
+  setlocal filetype=markdown
+  for lhs in ['][', '[]', ']u', ']h', 'gx', 'ge']
+    AssertEqual 0, get(maparg(lhs, 'n', 0, 1), 'buffer', 0)
+    AssertEqual 0, get(maparg(lhs, 'x', 0, 1), 'buffer', 0)
+  endfor
+  Assert maparg(']]', 'n') =~# 'call search('
+  Assert !empty(maparg('<Plug>Markdown_MoveToNextHeader', 'n'))
+
+Execute (changing filetype removes the add-on commands maps and buffer guard):
+  execute b:undo_ftplugin
+  AssertEqual &g:comments, &l:comments
+  AssertEqual &g:formatoptions, &l:formatoptions
+  setlocal filetype=text
+  AssertEqual 0, exists('b:did_simple_markdown')
+  AssertEqual 0, exists(':Toc')
+  AssertEqual 0, exists(':TableFormat')
+  AssertEqual 0, get(maparg('ge', 'n', 0, 1), 'buffer', 0)
+  AssertEqual '', maparg('<Plug>Markdown_EditUrlUnderCursor', 'n')
+  AssertEqual '', maparg('<Plug>Markdown_MoveToNextHeader', 'x')
+  setlocal filetype=markdown
+  AssertEqual 1, b:did_simple_markdown
+  AssertEqual 2, exists(':Toc')
+
+Execute (fold wrapper is enabled only with bundled folding):
+  Assert &l:foldexpr !=# 'SimpleMarkdownFold()'
+  let g:markdown_folding = 1
+  setlocal filetype=markdown
+  AssertEqual 'SimpleMarkdownFold()', &l:foldexpr
+  AssertEqual 'expr', &l:foldmethod
+  AssertEqual 'MarkdownFoldText()', &l:foldtext
+  setlocal filetype=text
+  AssertEqual &g:foldexpr, &l:foldexpr
+
+Given markdown;
+* item
+
+Execute (bullets continue on Enter without an indent expression):
+  Assert &l:formatoptions =~# 'r'
+  Assert &l:formatoptions !~# 'c'
+  AssertEqual 'b:>,b:*,b:+,b:-', &l:comments
+  execute "normal! A\<CR>next\<Esc>"
+  AssertEqual ['* item', '* next'], getline(1, '$')
+  AssertEqual '', &l:indentexpr
+
+Execute (bullet continuation can be disabled independently of blockquotes):
+  let g:vim_markdown_auto_insert_bullets = 0
+  setlocal filetype=markdown
+  AssertEqual 'b:>', &l:comments
+  Assert &l:formatoptions =~# 'r'
+  Assert &l:formatoptions =~# 'c'
+  execute "normal! A\<CR>next\<Esc>"
+  AssertEqual ['* item', 'next'], getline(1, '$')
+
+Given markdown;
+> quote
+
+Execute (blockquotes continue on Enter):
+  execute "normal! A\<CR>next\<Esc>"
+  AssertEqual ['> quote', '> next'], getline(1, '$')
+
+Given markdown;
+# Parent
+
+## Child
+
+text
+
+Execute (parent movement and optional next and previous Plug mappings):
+  normal! 3G
+  normal ]u
+  AssertEqual 1, line('.')
+  execute "normal \<Plug>Markdown_MoveToNextHeader"
+  AssertEqual 3, line('.')
+  execute "normal \<Plug>Markdown_MoveToPreviousHeader"
+  AssertEqual 1, line('.')

@@ -1,4 +1,5 @@
 Before:
+  Save g:vim_markdown_anchorexpr, g:vim_markdown_auto_extension_ext
   Save g:vim_markdown_follow_anchor, g:vim_markdown_no_extensions_in_markdown
   Save g:vim_markdown_edit_url_in, g:vim_markdown_autowrite
   Save &foldenable, &foldmethod, &foldexpr, &foldlevel, &foldcolumn
@@ -14,7 +15,7 @@ Before:
     let l:source = g:vim_markdown_test_root . '/index.md'
     let l:target = g:vim_markdown_test_root . '/' . a:filename
     call mkdir(fnamemodify(l:target, ':h'), 'p')
-    call writefile(['# Destination', '', 'Anchor here'], l:target)
+    call writefile(['# Destination', '', 'Anchor here', '', "## What's new in 2.0?"], l:target)
     call writefile(['[destination](' . a:url . ')'], l:source)
     execute 'edit ' . fnameescape(l:source)
     call cursor(1, 4)
@@ -91,6 +92,7 @@ Execute (ge appends the configured extension after decoding):
   call g:vim_markdown_test.follow('space name.md', 'space%20name')
 
 Execute (ge separates an anchor before decoding an encoded hash in the path):
+  let g:vim_markdown_anchorexpr = 'v:anchor'
   let g:vim_markdown_follow_anchor = 1
   AssertEqual 3, g:vim_markdown_test.follow('hash#name.md', 'hash%23name.md#Anchor')
 
@@ -105,3 +107,16 @@ Execute (ge rejects an encoded NUL before writing or changing buffers):
   AssertEqual g:vim_markdown_test_root . '/index.md', expand('%:p')
   AssertEqual 1, &modified
   AssertEqual ['[destination](bad%00name.md)'], readfile(expand('%:p'))
+
+Execute (ge follows an external-file heading anchor by default):
+  unlet! g:vim_markdown_follow_anchor g:vim_markdown_anchorexpr
+  AssertEqual 5, g:vim_markdown_test.follow('space name.md', 'space%20name.md#whats-new-in-20')
+
+Execute (ge retains custom extension support):
+  let g:vim_markdown_no_extensions_in_markdown = 1
+  let g:vim_markdown_auto_extension_ext = 'markdown'
+  call g:vim_markdown_test.follow('space name.markdown', 'space%20name')
+
+Execute (disabling anchor following keeps the fragment in the filename):
+  let g:vim_markdown_follow_anchor = 0
+  AssertEqual 1, g:vim_markdown_test.follow('file.md#whats-new-in-20', 'file.md#whats-new-in-20')

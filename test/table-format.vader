@@ -83,3 +83,40 @@ Expect (table with borders):
      | left | right | center |
      |:-----|------:|:------:|
      | left | right | center |
+
+Given markdown;
+| a | b |
+|---|---|
+| c | d |
+
+Execute (formatting is idempotent with either gdefault setting):
+  for setting in [0, 1]
+    let &gdefault = setting
+    let original = getline(1, '$')
+    TableFormat
+    TableFormat
+    AssertEqual original, getline(1, '$')
+  endfor
+
+Execute (missing Tabularize gives an actionable error without changing the table):
+  let original = getline(1, '$')
+  delcommand Tabularize
+  try
+    AssertThrows TableFormat
+    Assert g:vader_exception =~# 'TableFormat requires the tabular plugin (:Tabularize)'
+    AssertEqual original, getline(1, '$')
+  finally
+    unlet g:tabular_loaded
+    runtime plugin/Tabular.vim
+  endtry
+
+Given markdown;
+| a | b |
+|---|---|
+| c | d |
+  text with an escaped \| outside the table
+
+Execute (formatting preserves adjacent prose containing only an escaped pipe):
+  let original = getline(1, '$')
+  TableFormat
+  AssertEqual original, getline(1, '$')

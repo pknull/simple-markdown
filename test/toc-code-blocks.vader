@@ -1,0 +1,108 @@
+Given markdown;
+# chap 1
+
+hello
+world
+
+```bash
+# some bash scripting
+pwd
+
+# this is another comment
+# other
+echo "foo"
+```
+
+## chap 1.1
+
+- dog
+- cat
+
+~~~~bash
+mkdir foo
+# comment in ~
+~~~~
+
+### chap 1.1.1
+
+- dragons
+- fenixs
+
+# chap 2
+
+another
+
+## chap 2.1
+
+- uk
+- japan
+- china
+
+
+# chap 3
+
+nothing here
+
+chap 4
+======
+
+setext are evil
+
+chap 4.1
+--------
+
+evil indeed
+
+````bash
+# get system info
+uname -a
+````
+
+Execute (check TOC):
+  :Toc
+  :lclose
+  let res = getloclist(0)
+  let elem = res[0]
+  AssertEqual elem.lnum, 1
+  AssertEqual elem.text, 'chap 1'
+  let elem = res[1]
+  AssertEqual elem.lnum, 15
+  AssertEqual elem.text, '  chap 1.1'
+  let elem = res[2]
+  AssertEqual elem.lnum, 25
+  AssertEqual elem.text, '    chap 1.1.1'
+  let elem = res[3]
+  AssertEqual elem.lnum, 30
+  AssertEqual elem.text, 'chap 2'
+  let elem = res[4]
+  AssertEqual elem.lnum, 34
+  AssertEqual elem.text, '  chap 2.1'
+  let elem = res[5]
+  AssertEqual elem.lnum, 41
+  AssertEqual elem.text, 'chap 3'
+  let elem = res[6]
+  AssertEqual elem.lnum, 45
+  AssertEqual elem.text, 'chap 4'
+  let elem = res[7]
+  AssertEqual elem.lnum, 50
+  AssertEqual elem.text, '  chap 4.1'
+
+Given markdown;
+---
+layout: article
+title: A test of the heading folding when there is YAML frontmatter
+tags: markdown yaml vim-markdown
+---
+body
+
+heading
+-------
+
+Execute (check Toc of yaml front matter):
+  :Toc
+  :lclose
+  let res = getloclist(0)
+  AssertEqual len(res), 1
+  let elem = res[0]
+  AssertEqual elem.lnum, 8
+  AssertEqual elem.text, '  heading'

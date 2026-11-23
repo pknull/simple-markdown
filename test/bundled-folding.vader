@@ -1,0 +1,85 @@
+Before:
+  Save g:markdown_folding, g:markdown_fenced_languages
+  Save &foldmethod, &foldexpr, &foldtext, &foldenable
+  let g:markdown_folding = 1
+  let g:markdown_fenced_languages = ['sh']
+  setlocal filetype=markdown syntax=markdown
+  syntax sync fromstart
+  redraw!
+  let g:markdown_test_foldexpr = &l:foldexpr
+  let g:markdown_test_folds = {}
+  function! Markdown_TestFold() abort
+    let l:result = eval(g:markdown_test_foldexpr)
+    let g:markdown_test_folds[v:lnum] = l:result
+    return l:result
+  endfunction
+  setlocal foldexpr=Markdown_TestFold()
+  normal! zx
+
+After:
+  Restore
+  unlet g:markdown_test_foldexpr g:markdown_test_folds
+  delfunction Markdown_TestFold
+
+Given markdown;
+# Real heading
+
+```sh
+# comment
+printf 'hello'
+```
+
+## Next heading
+
+Execute (embedded shell comments must not start heading folds):
+  AssertEqual 'shComment', synIDattr(synID(4, 1, 1), 'name')
+  AssertEqual '=', g:markdown_test_folds[4]
+  AssertEqual '>1', g:markdown_test_folds[1]
+  AssertEqual '>2', g:markdown_test_folds[8]
+
+Given markdown;
+---
+title: x
+---
+
+Real heading
+============
+
+Execute (YAML front matter must not start setext heading folds):
+  AssertEqual '=', g:markdown_test_folds[2]
+  AssertEqual '>1', g:markdown_test_folds[5]
+
+Given markdown;
+# Real heading
+
+```sh
+fake heading
+------------
+```
+
+Real subheading
+---------------
+
+Execute (setext candidates inside embedded code must not start folds):
+  AssertEqual '=', g:markdown_test_folds[4]
+  AssertEqual '>2', g:markdown_test_folds[8]
+
+Given markdown;
+## Real heading
+
+```
+# comment
+fake heading
+------------
+```
+
+    # indented comment
+
+# Next heading
+
+Execute (generic fenced and indented blocks retain Vim folding semantics):
+  AssertEqual '=', g:markdown_test_folds[4]
+  AssertEqual '=', g:markdown_test_folds[5]
+  AssertEqual '=', g:markdown_test_folds[9]
+  AssertEqual '>2', g:markdown_test_folds[1]
+  AssertEqual '>1', g:markdown_test_folds[11]

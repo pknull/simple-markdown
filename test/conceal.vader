@@ -1,0 +1,127 @@
+Before:
+  Save g:markdown_syntax_conceal, g:markdown_fenced_languages
+  Save &conceallevel
+  let g:markdown_syntax_conceal = 1
+  let g:markdown_fenced_languages = []
+  setlocal conceallevel=2 syntax=markdown
+  syntax sync fromstart
+  redraw!
+
+After:
+  Restore
+  setlocal syntax=markdown
+
+Given markdown;
+[text](file.md "title")
+![alt](pic.png)
+
+Execute (link and image labels remain visible while targets and brackets hide):
+  " The exact bundled title regions remain visible inside the concealed target.
+  for [lnum, visible] in [[1, range(2, 5) + range(16, 22)], [2, range(3, 5)]]
+    for col in range(1, strlen(getline(lnum)))
+      AssertEqual index(visible, col) < 0 ? 1 : 0, synconcealed(lnum, col)[0], string([lnum, col])
+    endfor
+  endfor
+
+Given markdown;
+`code` and `` `code` ``
+
+Execute (single and double backtick delimiters hide but code stays visible):
+  for col in [1, 6, 12, 13, 14, 21, 22, 23]
+    AssertEqual 1, synconcealed(1, col)[0], 'column ' . col
+  endfor
+  for col in [2, 3, 4, 5, 15, 16, 17, 18, 19, 20]
+    AssertEqual 0, synconcealed(1, col)[0], 'column ' . col
+  endfor
+
+Given markdown;
+```
+plain code
+```
+
+~~~~
+more code
+~~~~
+
+Execute (generic backtick and tilde fence lines hide):
+  for lnum in [1, 3, 5, 7]
+    for col in range(1, strlen(getline(lnum)))
+      AssertEqual 1, synconcealed(lnum, col)[0]
+    endfor
+  endfor
+  AssertEqual 0, synconcealed(2, 1)[0]
+  AssertEqual 'markdownCodeBlock', synIDattr(synID(2, 1, 1), 'name')
+
+Given markdown;
+```sh
+# comment
+printf 'hello'
+```
+
+~~~sh
+# another comment
+~~~
+
+```
+plain code
+```
+
+Execute (embedded shell highlighting survives and all fence lines conceal):
+  let g:markdown_fenced_languages = ['sh']
+  setlocal syntax=markdown
+  syntax sync fromstart
+  redraw!
+  for lnum in [2, 3, 7]
+    Assert synIDattr(synID(lnum, 1, 1), 'name') =~# '^sh', 'line ' . lnum
+    AssertEqual 0, synconcealed(lnum, 1)[0]
+  endfor
+  for lnum in [1, 4, 6, 8, 10, 12]
+    for col in range(1, strlen(getline(lnum)))
+      AssertEqual 1, synconcealed(lnum, col)[0], string([lnum, col])
+    endfor
+  endfor
+
+Given markdown;
+```bash
+# comment
+```
+
+Execute (bundled fenced language aliases retain their priority):
+  let g:markdown_fenced_languages = ['bash=sh']
+  setlocal syntax=markdown
+  syntax sync fromstart
+  redraw!
+  AssertEqual 'shComment', synIDattr(synID(2, 1, 1), 'name')
+  AssertEqual 1, synconcealed(1, 1)[0]
+  AssertEqual 1, synconcealed(3, 1)[0]
+
+Given markdown;
+text
+
+    indented code
+
+end
+
+Execute (indented blocks keep the bundled syntax and are not concealed):
+  AssertEqual 'markdownCodeBlock', synIDattr(synID(3, 5, 1), 'name')
+  AssertEqual 0, synconcealed(3, 5)[0]
+
+Given markdown;
+[text](file.md) `code`
+
+```sh
+# comment
+```
+
+Execute (the bundled conceal option disables every added conceal rule):
+  let g:markdown_syntax_conceal = 0
+  let g:markdown_fenced_languages = ['sh']
+  setlocal syntax=markdown
+  syntax sync fromstart
+  redraw!
+  for lnum in range(1, line('$'))
+    for col in range(1, strlen(getline(lnum)))
+      AssertEqual 0, synconcealed(lnum, col)[0]
+    endfor
+  endfor
+  AssertEqual 'shComment', synIDattr(synID(4, 1, 1), 'name')

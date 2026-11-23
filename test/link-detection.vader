@@ -1,0 +1,119 @@
+Before:
+  let b:url_at = Markdown_GetFunc('after/ftplugin/markdown.vim', 'Markdown_GetUrlForPosition')
+  syntax sync fromstart
+  redraw!
+
+After:
+  setlocal syntax=markdown
+
+Given markdown;
+[text](file.md)
+
+Execute (inline link at every byte including all delimiters):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual 'file.md', b:url_at(1, col), 'column ' . col
+  endfor
+
+Given markdown;
+[text](dir/file.md#some-anchor)
+
+Execute (inline link preserves its path and anchor):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual 'dir/file.md#some-anchor', b:url_at(1, col)
+  endfor
+
+Given markdown;
+[text](file.md "title")
+
+Execute (inline title is excluded from the destination):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual 'file.md', b:url_at(1, col)
+  endfor
+
+Given markdown;
+<https://example.com>
+
+Execute (automatic link includes both angle brackets as cursor positions):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual 'https://example.com', b:url_at(1, col)
+  endfor
+
+Given markdown;
+Visit https://example.com today.
+
+Execute (bare URL in running text without a syntax group):
+  AssertEqual '', synIDattr(synID(1, 8, 1), 'name')
+  for col in range(7, 25)
+    AssertEqual 'https://example.com', b:url_at(1, col)
+  endfor
+  AssertEqual '', b:url_at(1, 1)
+  AssertEqual '', b:url_at(1, 26)
+
+Given markdown;
+[id]: https://example.com "title"
+
+Execute (reference definition returns only its URL):
+  for col in range(7, 25)
+    AssertEqual 'https://example.com', b:url_at(1, col)
+  endfor
+  AssertEqual '', b:url_at(1, 2)
+  AssertEqual '', b:url_at(1, 28)
+
+Given markdown;
+![alt](pic.png)
+
+Execute (image link at every byte including the exclamation mark):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual 'pic.png', b:url_at(1, col)
+  endfor
+
+Given markdown;
+Plain text, [not a link], and (parentheses).
+
+Execute (non-link text and malformed delimiters return empty):
+  for col in range(1, strlen(getline(1)))
+    AssertEqual '', b:url_at(1, col)
+  endfor
+
+Given markdown;
+[**bold** and *italic*](file.md) [second](other.md)
+
+Execute (nested emphasis retains its outer link in synstack):
+  Assert index(map(synstack(1, 5), {_, id -> synIDattr(id, 'name')}), 'markdownLinkText') >= 0
+  AssertEqual 'markdownBold', synIDattr(synID(1, 5, 1), 'name')
+  AssertEqual 'file.md', b:url_at(1, 5)
+  AssertEqual 'file.md', b:url_at(1, 16)
+  AssertEqual 'other.md', b:url_at(1, 39)
+
+Given markdown;
+[text](file.md "title")
+![alt](pic.png)
+<https://example.com>
+Visit https://example.com today.
+[id]: https://example.com
+plain text
+
+Execute (text fallback works when syntax is cleared):
+  setlocal syntax=OFF
+  for [lnum, url, first, last] in [
+        \ [1, 'file.md', 1, strlen(getline(1))],
+        \ [2, 'pic.png', 1, strlen(getline(2))],
+        \ [3, 'https://example.com', 1, strlen(getline(3))],
+        \ [4, 'https://example.com', 7, 25],
+        \ [5, 'https://example.com', 7, 25]]
+    for col in range(first, last)
+      AssertEqual url, b:url_at(lnum, col)
+    endfor
+  endfor
+  AssertEqual '', b:url_at(6, 2)
+
+Given markdown;
+`[text](file.md)`
+
+```
+https://example.com
+```
+
+Execute (code examples are not treated as links):
+  AssertEqual '', b:url_at(1, 4)
+  AssertEqual '', b:url_at(4, 4)
