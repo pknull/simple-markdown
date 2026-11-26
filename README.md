@@ -32,6 +32,7 @@ Set these options before opening Markdown files. The fold wrapper excludes code 
 - `:HeaderDecrease`, `:HeaderIncrease`, `:SetexToAtx`: change heading levels or convert setext headings to ATX. Each accepts a range and defaults to the whole file. `:TableFormat` formats the table under the cursor and requires Tabular.
 - Blockquotes and list bullets continue on Enter. The plugin sets no indent expression.
 - Link brackets and targets, inline-code delimiters and fence lines conceal when Vim's `g:markdown_syntax_conceal` is enabled (the default). Optional link titles remain visible. Embedded language highlighting stays intact. Set `conceallevel=2` to hide concealed text; Vim's `concealcursor` controls visibility on the cursor line.
+- Wikilinks conceal as `[[Folder/Page|Label]]` → `Label` and `[[Page]]` → `Page`. Follow them with `ge`, including `#Heading` anchors. Targets are literal filenames, with `.md` tried when omitted: first relative to this note, then relative to the nearest `.obsidian` vault or Git root, then a unique matching name or path suffix inside that root. Missing or ambiguous targets report an error without creating a file. Code and escaped links remain literal.
 
 ## Options
 

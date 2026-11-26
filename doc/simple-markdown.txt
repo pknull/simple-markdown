@@ -62,6 +62,16 @@ anchor; literal plus signs stay unchanged. An anchor-only link stays in the
 current file. Built-in anchor matching ignores case and tolerates punctuation:
 #whats-new-in-20 finds "## What's new in 2.0?". Setext headings also work.
 
+ge also follows [[Page]], [[Folder/Page|Label]], [[Page#Heading]] and
+[[#Heading]]. The alias is ignored; wikilink filenames are literal, not URL
+decoded. If needed, .md (or vim_markdown_auto_extension_ext) is appended.
+Targets are checked relative to the current note, then relative to the nearest
+.obsidian vault or Git root. A unique name or path suffix inside that root also
+works. Without a root marker, only direct relative paths are checked. Missing
+or ambiguous targets report an error before writing or leaving the buffer.
+Use a longer path to disambiguate duplicate names. Split/tab and autowrite
+options apply as for ordinary links; Ctrl-O returns through Vim's jump list.
+
 COMMANDS                                        *simple-markdown-commands*
 
 :Toc                                                    *:Toc*
@@ -152,6 +162,13 @@ Vim's 'concealcursor' determines visibility on the cursor line. Disable conceal
 rules with the bundled option, before opening the buffer: >
     let g:markdown_syntax_conceal = 0
 <
+Wikilinks show their alias, or the full target if there is no alias:
+    [[Folder/Page|Label]]  displays as Label
+    [[Folder/Page]]        displays as Folder/Page
+Code, escaped links and incomplete wikilinks remain literal. Use an empty
+'concealcursor' to reveal markup on the cursor line in all modes. ge follows
+wikilinks as described under mappings above.
+
 DEVELOPMENT                                     *simple-markdown-development*
 
 Run make test for the Vader suite. Tests use Vim's bundled runtime, this add-on,

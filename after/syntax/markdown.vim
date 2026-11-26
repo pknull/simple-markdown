@@ -11,6 +11,14 @@ syn clear markdownLinkText markdownLink markdownCode markdownCodeBlock
 syn region markdownCodeBlock start="^\n\( \{4,}\|\t\)" end="^\ze \{,3}\S.*$" keepend
 syn region markdownLinkText matchgroup=markdownLinkTextDelimiter start="!\=\[\%(\_[^][]*\%(\[\_[^][]*\]\_[^][]*\)*]\%( \=[[(]\)\)\@=" end="\]\%( \=[[(]\)\@=" nextgroup=markdownLink,markdownId skipwhite contains=@markdownInline,markdownLineStart concealends
 syn region markdownLink matchgroup=markdownLinkDelimiter start="(" end=")" contains=markdownUrl keepend contained conceal
+
+" Wikilinks show their alias, or the target when no alias is present. Require a
+" complete single-line link so unfinished brackets cannot conceal nearby prose.
+syn region markdownWikiLink matchgroup=markdownLinkDelimiter start="\[\[\ze[^][|]\+\%(|[^][|]\+\)\?]]" end="]]" oneline keepend concealends contains=markdownWikiLinkTarget,@Spell containedin=markdownItalic,markdownBold,markdownBoldItalic,markdownStrike
+syn match markdownWikiLinkTarget "\%(\[\[\)\@<=[^][|]\+|" contained conceal
+syn cluster markdownInline add=markdownWikiLink
+hi def link markdownWikiLink markdownLinkText
+
 syn region markdownCode matchgroup=markdownCodeDelimiter start="`" end="`" keepend contains=markdownLineStart concealends
 syn region markdownCode matchgroup=markdownCodeDelimiter start="`` \=" end=" \=``" keepend contains=markdownLineStart concealends
 syn region markdownCodeBlock matchgroup=markdownCodeDelimiter start="^\s*\z(`\{3,\}\).*$" end="^\s*\z1\ze\s*$" keepend concealends

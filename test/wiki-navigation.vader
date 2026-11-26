@@ -1,0 +1,147 @@
+Before:
+  Save g:vim_markdown_edit_url_in, g:vim_markdown_autowrite
+  Save g:vim_markdown_follow_anchor, g:vim_markdown_anchorexpr
+  Save g:vim_markdown_auto_extension_ext, g:vim_markdown_no_extensions_in_markdown
+  Save &hidden
+  set hidden
+  let g:vim_markdown_edit_url_in = 'current'
+  let g:vim_markdown_autowrite = 0
+  let g:vim_markdown_follow_anchor = 1
+  let g:vim_markdown_no_extensions_in_markdown = 0
+  unlet! g:vim_markdown_anchorexpr g:vim_markdown_auto_extension_ext
+  let g:wiki_window = win_getid()
+  let g:wiki_buffer = bufnr('')
+  " Keep the no-root case outside the checkout even when the runner sets TMPDIR.
+  let g:wiki_root = '/tmp/simple-markdown-wiki-' . fnamemodify(tempname(), ':h:t') . '/vault [test] %20 space'
+  call mkdir(g:wiki_root . '/.obsidian', 'p')
+  call mkdir(g:wiki_root . '/notes', 'p')
+  function! WikiFile(path, lines) abort
+    call mkdir(fnamemodify(g:wiki_root . '/' . a:path, ':h'), 'p')
+    if !filereadable(g:wiki_root . '/' . a:path) || readfile(g:wiki_root . '/' . a:path) !=# a:lines
+      call writefile(a:lines, g:wiki_root . '/' . a:path)
+    endif
+  endfunction
+  function! WikiOpen(link) abort
+    execute 'edit! ' . fnameescape(g:wiki_root . '/notes/index.md')
+    call setline(1, [a:link, '', '## Local Heading'])
+    silent write
+    call cursor(1, 4)
+  endfunction
+
+After:
+  call win_gotoid(g:wiki_window)
+  execute 'hide buffer ' . g:wiki_buffer
+  for info in getbufinfo()
+    if stridx(info.name, g:wiki_root . '/') == 0
+      execute 'bwipeout! ' . info.bufnr
+    endif
+  endfor
+  call delete(fnamemodify(g:wiki_root, ':h'), 'rf')
+  delfunction WikiFile
+  delfunction WikiOpen
+  unlet g:wiki_window g:wiki_buffer g:wiki_root
+  Restore
+
+Execute (ge follows relative wikilinks and aliases without percent-decoding):
+  for [target, filename] in [['Page', 'Page.md'], ['Folder/Two Words|Alias', 'Folder/Two Words.md'], ['Café|Label', 'Café.md'], ['literal%20|Label', 'literal%20.md'], ['Page.md|Label', 'Page.md']]
+    call WikiFile('notes/' . filename, ['# Target'])
+    call WikiOpen('[[' . target . ']]')
+    normal ge
+    AssertEqual g:wiki_root . '/notes/' . filename, expand('%:p')
+    AssertEqual '# Target', getline(1)
+  endfor
+
+Execute (ge finds vault paths and unique short names, preferring the current folder):
+  call WikiFile('other/Deep Page.md', ['# Deep'])
+  for target in ['other/Deep Page', 'Deep Page']
+    call WikiOpen('[[' . target . '|Label]]')
+    normal ge
+    AssertEqual g:wiki_root . '/other/Deep Page.md', expand('%:p')
+  endfor
+  call WikiFile('notes/Deep Page.md', ['# Local'])
+  call WikiOpen('[[Deep Page]]')
+  normal ge
+  AssertEqual g:wiki_root . '/notes/Deep Page.md', expand('%:p')
+
+Execute (ge follows local and external heading anchors):
+  call WikiFile('notes/Page.md', ['# Target', '', '## A Heading'])
+  call WikiOpen('[[Page#A Heading|Label]]')
+  normal ge
+  AssertEqual g:wiki_root . '/notes/Page.md', expand('%:p')
+  AssertEqual 3, line('.')
+  call WikiOpen('[[#Local Heading]]')
+  normal ge
+  AssertEqual g:wiki_root . '/notes/index.md', expand('%:p')
+  AssertEqual 3, line('.')
+
+Execute (missing and ambiguous links preserve unsaved text and do not create files):
+  call WikiFile('one/Duplicate.md', ['# One'])
+  call WikiFile('two/Duplicate.md', ['# Two'])
+  for [target, message] in [['Missing', 'Wikilink target not found'], ['Duplicate', 'Ambiguous wikilink']]
+    call WikiOpen('[[' . target . ']]')
+    call setline(2, 'unsaved')
+    let g:vim_markdown_autowrite = 1
+    AssertThrows normal ge
+    Assert stridx(g:vader_exception, message) >= 0, g:vader_exception
+    AssertEqual g:wiki_root . '/notes/index.md', expand('%:p')
+    AssertEqual 1, &modified
+    AssertEqual '', readfile(expand('%:p'))[1]
+    AssertEqual 0, filereadable(g:wiki_root . '/notes/' . target)
+    setlocal nomodified
+  endfor
+
+Execute (wikilinks preserve split options and permit jumping back to unsaved source):
+  call WikiFile('notes/Page.md', ['# Target'])
+  for mode in ['tab', 'vsplit', 'hsplit', 'current']
+    let g:vim_markdown_edit_url_in = mode
+    call WikiOpen('[[Page|Label]]')
+    call setline(2, 'unsaved')
+    let source = bufnr('')
+    normal vge
+    AssertEqual g:wiki_root . '/notes/Page.md', expand('%:p')
+    AssertEqual 1, getbufvar(source, '&modified')
+    if mode ==# 'tab'
+      tabclose
+    elseif mode !=# 'current'
+      close
+    else
+      execute "normal! \<C-o>"
+    endif
+    AssertEqual source, bufnr('')
+    AssertEqual 'unsaved', getline(2)
+    setlocal nomodified
+  endfor
+
+Execute (the nearest Git root supports wikilinks outside Obsidian):
+  call delete(g:wiki_root . '/.obsidian', 'd')
+  call writefile(['gitdir: elsewhere'], g:wiki_root . '/.git')
+  call WikiFile('other/Page.md', ['# Target'])
+  call WikiOpen('[[Page]]')
+  normal ge
+  AssertEqual g:wiki_root . '/other/Page.md', expand('%:p')
+
+Execute (wikilink detection works on labels and delimiters and skips code and escapes):
+  let WikiAt = Markdown_GetFunc('after/ftplugin/markdown.vim', 'WikiLinkAt')
+  call WikiOpen('[[Folder/Page|Label]] and [[Second]]')
+  for col in range(1, 21)
+    AssertEqual {'target': 'Folder/Page'}, WikiAt(1, col), 'column ' . col
+  endfor
+  for text in ['\[[Page]]', '`[[Page]]`', '[[unfinished', '[[empty|]]']
+    call setline(1, text)
+    syntax sync fromstart
+    redraw!
+    AssertEqual {}, WikiAt(1, 5), text
+  endfor
+  call setline(1, '[[Page]]')
+  setlocal syntax=OFF
+  AssertEqual {'target': 'Page'}, WikiAt(1, 5)
+
+Execute (outside a vault or repository only direct relative targets are searched):
+  call delete(g:wiki_root . '/.obsidian', 'd')
+  call WikiFile('notes/subfolder/Page.md', ['# Nested'])
+  call WikiOpen('[[Page]]')
+  AssertThrows normal ge
+  Assert stridx(g:vader_exception, 'Wikilink target not found') >= 0, 'Got: ' . g:vader_exception
+  call WikiOpen('[[subfolder/Page]]')
+  normal ge
+  AssertEqual g:wiki_root . '/notes/subfolder/Page.md', expand('%:p')

@@ -682,6 +682,74 @@ function! s:Markdown_GetUrlForPosition(lnum, col) abort
     return ''
 endfunction
 
+" Wikilink targets are literal filenames; aliases only affect display.
+function! s:WikiLinkAt(lnum, col) abort
+    if match(s:SyntaxNames(a:lnum, a:col), '^markdown\%(Code\|Highlight_\|YamlHead\)') >= 0
+        return {}
+    endif
+    let l:line = getline(a:lnum)
+    let l:pattern = '\[\[\([^][|]\+\)\%(|[^][|]\+\)\?]]'
+    let l:start = 0
+    while l:start < strlen(l:line)
+        let l:match = matchstrpos(l:line, l:pattern, l:start)
+        if l:match[1] < 0
+            break
+        endif
+        if a:col > l:match[1] && a:col <= l:match[2]
+            let l:slashes = matchstr(strpart(l:line, 0, l:match[1]), '\\*$')
+            return strlen(l:slashes) % 2 ? {} : {'target': matchlist(l:match[0], l:pattern)[1]}
+        endif
+        let l:start = l:match[2]
+    endwhile
+    return {}
+endfunction
+
+function! s:ResolveWikiLink(target) abort
+    let l:base = expand('%:p:h')
+    let l:root = l:base
+    let l:search_root = 1
+    while !isdirectory(l:root . '/.obsidian') && !filereadable(l:root . '/.git/HEAD') && !filereadable(l:root . '/.git')
+        let l:parent = fnamemodify(l:root, ':h')
+        if l:parent ==# l:root
+            let l:root = l:base
+            let l:search_root = 0
+            break
+        endif
+        let l:root = l:parent
+    endwhile
+    let l:ext = '.' . get(g:, 'vim_markdown_auto_extension_ext', 'md')
+    let l:names = [a:target]
+    if strpart(a:target, strlen(a:target) - strlen(l:ext)) !=# l:ext
+        call add(l:names, a:target . l:ext)
+    endif
+    " Prefer exact relative paths, then vault/project-root paths.
+    for l:dir in uniq([l:base, l:root])
+        for l:name in l:names
+            let l:path = fnamemodify(l:dir . '/' . l:name, ':p')
+            if filereadable(l:path)
+                return l:path
+            endif
+        endfor
+    endfor
+    " Short names and path suffixes must identify a unique note in this root.
+    let l:matches = []
+    if l:search_root && a:target !~# '^\%(/\|\.\{1,2}/\)'
+        for l:name in l:names
+            let l:pattern = escape(l:root, '\*?[]{}') . '/**/' . escape(l:name, '\*?[]{}')
+            call extend(l:matches, filter(glob(l:pattern, 1, 1), 'filereadable(v:val)'))
+        endfor
+    endif
+    let l:matches = uniq(sort(l:matches))
+    if len(l:matches) == 1
+        return l:matches[0]
+    elseif empty(l:matches)
+        echoerr 'Wikilink target not found: ' . a:target
+    else
+        echoerr 'Ambiguous wikilink: ' . a:target . ' (' . len(l:matches) . ' matches; use a path)'
+    endif
+    return ''
+endfunction
+
 " Match a GitHub-style slug against heading text, tolerating punctuation.
 function! s:AnchorPattern(anchor) abort
     let l:words = []
@@ -733,7 +801,8 @@ if !exists('*s:EditUrlUnderCursor')
           " default to current buffer
           let l:editmethod = 'edit'
         endif
-        let l:url = s:Markdown_GetUrlForPosition(line('.'), col('.'))
+        let l:wiki = s:WikiLinkAt(line('.'), col('.'))
+        let l:url = empty(l:wiki) ? s:Markdown_GetUrlForPosition(line('.'), col('.')) : l:wiki.target
         if l:url !=# ''
             let l:anchor = ''
             if get(g:, 'vim_markdown_follow_anchor', 1)
@@ -746,19 +815,25 @@ if !exists('*s:EditUrlUnderCursor')
                             \ l:anchorexpr, 'v:anchor',
                             \ escape('"'.l:anchor.'"', '"'), ''))
                     elseif l:anchor !=# ''
-                        let l:anchor = s:AnchorPattern(l:anchor)
+                        let l:anchor = s:AnchorPattern(empty(l:wiki) ? l:anchor : substitute(l:anchor, '\s\+', '-', 'g'))
                     endif
                 endif
             endif
             " Decode local URL bytes once, after separating the anchor and
             " before joining the parent path or escaping the Ex argument.
-            if l:url !~# '^\a[[:alnum:]+.-]*:'
+            if empty(l:wiki) && l:url !~# '^\a[[:alnum:]+.-]*:'
                 if l:url =~? '%00'
                     echoerr 'A Markdown filename cannot contain a NUL byte.'
                     return
                 endif
                 let l:url = substitute(l:url, '%\(\x\x\)',
                     \ '\=eval(''"\x'' . submatch(1) . ''"'')', 'g')
+            endif
+            if !empty(l:wiki) && l:url !=# ''
+                let l:url = s:ResolveWikiLink(l:url)
+                if l:url ==# ''
+                    return
+                endif
             endif
             if get(g:, 'vim_markdown_autowrite', 0)
                 write
@@ -773,7 +848,9 @@ if !exists('*s:EditUrlUnderCursor')
                         let l:ext = '.md'
                     endif
                 endif
-                let l:url = fnameescape(fnamemodify(expand('%:h').'/'.l:url.l:ext, ':.'))
+                let l:url = empty(l:wiki)
+                    \ ? fnameescape(fnamemodify(expand('%:h').'/'.l:url.l:ext, ':.'))
+                    \ : fnameescape(l:url)
                 execute l:editmethod l:url
             endif
             if l:anchor !=# ''
